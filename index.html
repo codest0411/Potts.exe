@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://generativelanguage.googleapis.com https://api.open-meteo.com https://api.groq.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://generativelanguage.googleapis.com https://api.open-meteo.com https://api.groq.com https://unpkg.com;">
   <title>POTTS Desktop — AI Assistant</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -415,15 +415,19 @@
   </template>
 
   <!-- ═══ SCRIPTS ═══ -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="./node_modules/lucide/dist/umd/lucide.min.js"></script>
   <script src="renderer.js"></script>
 
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
+      let timeout;
       const observer = new MutationObserver(() => {
-        lucide.createIcons();
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          if (window.lucide) lucide.createIcons();
+        }, 50);
       });
       observer.observe(document.body, { childList: true, subtree: true });
     });

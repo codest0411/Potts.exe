@@ -99,7 +99,7 @@ async function createWindow() {
     frame: false,
     transparent: false,
     resizable: true,
-    show: false,
+    show: true,
     backgroundColor: '#0a0a0f',
     icon: getIconPath(),
     webPreferences: {

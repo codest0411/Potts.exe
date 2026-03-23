@@ -9,6 +9,13 @@
 
 // ─── APP STATE ──────────────────────────────────────────────
 
+window.addEventListener('error', (event) => {
+  try { window.potts.files.write({ filePath: 'D:\\POTTS_Data\\ui-error.txt', content: event.message + '\n' + event.error?.stack }); } catch(e){}
+});
+window.addEventListener('unhandledrejection', (event) => {
+  try { window.potts.files.write({ filePath: 'D:\\POTTS_Data\\ui-error.txt', content: 'Unhandled Promise: ' + event.reason }); } catch(e){}
+});
+
 const APP = {
   currentScreen: 'home',
   status: 'idle',        // idle | listening | processing | error
@@ -164,7 +171,7 @@ function speak(text) {
 async function queryAI(userMessage) {
   const provider = APP.settings.aiProvider || 'gemini';
   const apiKey = provider === 'groq' ? APP.settings.groqApiKey : APP.settings.geminiApiKey;
-  
+
   if (!apiKey) {
     return {
       text: `I need a ${provider === 'groq' ? 'Groq' : 'Gemini'} API key to function. Please add one in Settings, Sir.`,
@@ -212,7 +219,7 @@ CRITICAL SECURITY RULES:
 
   try {
     let rawText = '';
-    
+
     if (provider === 'groq') {
       const model = APP.settings.groqModel || 'llama-3.3-70b-versatile';
       const messages = [
@@ -223,7 +230,7 @@ CRITICAL SECURITY RULES:
         })),
         { role: 'user', content: userMessage }
       ];
-      
+
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -241,10 +248,10 @@ CRITICAL SECURITY RULES:
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error?.message || `Groq API error: ${response.status}`);
       }
-      
+
       const data = await response.json();
       rawText = data.choices?.[0]?.message?.content || '';
-      
+
     } else {
       // Gemini
       const model = APP.settings.geminiModel || 'gemini-2.0-flash';
@@ -283,8 +290,8 @@ CRITICAL SECURITY RULES:
     let parsed;
     try {
       // Extract JSON from possible markdown code blocks
-      const jsonMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/) || 
-                         rawText.match(/(\{[\s\S]*\})/);
+      const jsonMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/) ||
+        rawText.match(/(\{[\s\S]*\})/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[1]);
       } else {
@@ -321,7 +328,33 @@ async function executeIntent(intent) {
       case 'open_app': {
         const appName = intent.params?.name;
         if (appName) {
-          await window.potts.system.execute(`start "" "${appName}"`);
+          // Map common names to actual executable commands
+          const appMap = {
+            'google chrome': 'chrome',
+            'chrome': 'chrome',
+            'microsoft edge': 'msedge',
+            'edge': 'msedge',
+            'notepad': 'notepad',
+            'calculator': 'calc',
+            'calc': 'calc',
+            'word': 'winword',
+            'microsoft word': 'winword',
+            'excel': 'excel',
+            'microsoft excel': 'excel',
+            'powerpoint': 'powerpnt',
+            'microsoft powerpoint': 'powerpnt',
+            'vs code': 'code',
+            'visual studio code': 'code',
+            'terminal': 'wt',
+            'windows terminal': 'wt',
+            'file explorer': 'explorer',
+            'explorer': 'explorer',
+            'brave': 'brave',
+            'firefox': 'firefox',
+            'spotify': 'spotify'
+          };
+          const execName = appMap[appName.toLowerCase()] || appName;
+          await window.potts.system.execute(`start "" "${execName}"`);
           showToast(`Opening ${appName}...`, 'success');
         }
         break;
@@ -424,7 +457,7 @@ async function getWeather(city) {
     // First geocode the city
     const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
     const geoData = await geoRes.json();
-    
+
     if (!geoData.results || geoData.results.length === 0) {
       speak(`I couldn't find weather data for ${city}, Sir.`);
       return;
@@ -433,10 +466,10 @@ async function getWeather(city) {
     const { latitude, longitude, name } = geoData.results[0];
     const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
     const weatherData = await weatherRes.json();
-    
+
     const temp = weatherData.current_weather?.temperature;
     const windSpeed = weatherData.current_weather?.windspeed;
-    
+
     const msg = `Currently in ${name}: ${temp}°C with wind at ${windSpeed} km/h, Sir.`;
     speak(msg);
     showToast(msg, 'info');
@@ -1205,7 +1238,7 @@ async function initSettingsScreen() {
     const input = document.getElementById('settings-api-key');
     if (input) input.type = input.type === 'password' ? 'text' : 'password';
   });
-  
+
   document.getElementById('settings-toggle-groq-key')?.addEventListener('click', () => {
     const input = document.getElementById('settings-groq-key');
     if (input) input.type = input.type === 'password' ? 'text' : 'password';
