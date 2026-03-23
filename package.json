@@ -1,0 +1,119 @@
+{
+  "name": "potts-desktop",
+  "version": "1.0.0",
+  "description": "POTTS Desktop — A voice-controlled AI desktop assistant powered by Google Gemini. Launch apps, manage files, take notes, and control Windows hands-free.",
+  "main": "main.js",
+  "author": "POTTS Team",
+  "license": "MIT",
+  "homepage": "https://github.com/potts-desktop",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+
+    "test": "jest --verbose",
+    "test:security": "jest tests/security.test.js --verbose",
+    "test:notes": "jest tests/notes.test.js --verbose",
+    "test:files": "jest tests/files.test.js --verbose",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable",
+    "build:installer": "electron-builder --win nsis",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "node-fetch": "^2.7.0",
+    "auto-launch": "^5.0.6",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0"
+  },
+  "build": {
+    "appId": "com.potts.desktop",
+    "productName": "POTTS Desktop",
+    "copyright": "Copyright © 2026 POTTS Team",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!tests/**",
+      "!POTTS_Data/**",
+      "!node_modules/.cache/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "POTTS-Desktop-${version}-Setup.${ext}",
+      "publisherName": "POTTS Team"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "POTTS Desktop",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerSidebar": null,
+      "license": null
+    },
+    "portable": {
+      "artifactName": "POTTS-Desktop-${version}-Portable.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
+    ]
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "security-guard.js",
+      "notes-manager.js",
+      "viewmodels/**/*.js",
+      "models/**/*.js"
+    ],
+    "coverageDirectory": "coverage",
+    "verbose": true
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "potts",
+    "desktop-assistant",
+    "voice-control",
+    "gemini-ai",
+    "electron",
+    "windows",
+    "file-manager",
+    "notes",
+    "hands-free"
+  ]
+}

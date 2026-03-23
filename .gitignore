@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.env
+.idea/
+.vscode/
+*.exe
+*.log
+*.zip
+*.tar.gz
+D:/POTTS_Data/
+E:/POTTS_Data/
+*.tmp
+*.bak

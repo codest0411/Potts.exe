@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://generativelanguage.googleapis.com https://api.open-meteo.com https://api.groq.com;">
+  <title>POTTS Desktop — AI Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ═══ CUSTOM TITLEBAR ═══ -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-title">
+      <span class="logo">◆ POTTS</span>
+      <span>Desktop Assistant</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="btn-minimize" title="Minimize">─</button>
+      <button class="titlebar-btn" id="btn-maximize" title="Maximize">□</button>
+      <button class="titlebar-btn close" id="btn-close" title="Close">✕</button>
+    </div>
+  </div>
+
+  <!-- ═══ APP CONTAINER ═══ -->
+  <div class="app-container">
+
+    <!-- ═══ LEFT NAVIGATION RAIL ═══ -->
+    <nav class="nav-rail" id="nav-rail">
+      <button class="nav-item active" data-screen="home" id="nav-home">
+        <i data-lucide="home"></i>
+        <span class="tooltip">Home</span>
+      </button>
+      <button class="nav-item" data-screen="voice" id="nav-voice">
+        <i data-lucide="mic"></i>
+        <span class="tooltip">Voice</span>
+      </button>
+      <button class="nav-item" data-screen="files" id="nav-files">
+        <i data-lucide="folder"></i>
+        <span class="tooltip">Files</span>
+      </button>
+      <button class="nav-item" data-screen="notes" id="nav-notes">
+        <i data-lucide="file-text"></i>
+        <span class="tooltip">Notes</span>
+      </button>
+      <button class="nav-item" data-screen="settings" id="nav-settings">
+        <i data-lucide="settings"></i>
+        <span class="tooltip">Settings</span>
+      </button>
+      <button class="nav-item" data-screen="security" id="nav-security">
+        <i data-lucide="shield"></i>
+        <span class="tooltip">Security</span>
+      </button>
+    </nav>
+
+    <!-- ═══ MAIN CONTENT AREA ═══ -->
+    <main class="content-area" id="content-area">
+
+      <!-- HOME SCREEN -->
+      <section class="screen active" id="screen-home"></section>
+
+      <!-- VOICE SCREEN -->
+      <section class="screen" id="screen-voice"></section>
+
+      <!-- FILES SCREEN -->
+      <section class="screen" id="screen-files"></section>
+
+      <!-- NOTES SCREEN -->
+      <section class="screen" id="screen-notes"></section>
+
+      <!-- SETTINGS SCREEN -->
+      <section class="screen" id="screen-settings"></section>
+
+      <!-- SECURITY SCREEN -->
+      <section class="screen" id="screen-security"></section>
+
+    </main>
+  </div>
+
+  <!-- ═══ TOAST CONTAINER ═══ -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ═══ MODAL OVERLAY ═══ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-content"></div>
+  </div>
+
+  <!-- ═══ SCREEN TEMPLATES ═══ -->
+
+  <!-- HOME TEMPLATE -->
+  <template id="tmpl-home">
+    <div class="screen-header">
+      <h1 id="home-greeting">Good Morning, Sir</h1>
+      <p>POTTS Desktop is online and ready to assist.</p>
+    </div>
+
+    <div class="status-bar" id="home-status-bar">
+      <div class="status-dot idle" id="home-status-dot"></div>
+      <span class="status-label" id="home-status-label">Idle — Awaiting command</span>
+    </div>
+
+    <div class="stats-grid" id="home-stats">
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="file-text"></i></div>
+        <div class="stat-value" id="stat-notes">0</div>
+        <div class="stat-label">Notes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="shield"></i></div>
+        <div class="stat-value" id="stat-security">0</div>
+        <div class="stat-label">Blocked</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="save"></i></div>
+        <div class="stat-value" id="stat-memory">0%</div>
+        <div class="stat-label">Memory</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="timer"></i></div>
+        <div class="stat-value" id="stat-uptime">--</div>
+        <div class="stat-label">Uptime</div>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <button class="quick-action" id="qa-voice" data-action="voice">
+        <span class="qa-icon"><i data-lucide="mic"></i></span> Start Voice
+      </button>
+      <button class="quick-action" id="qa-notes" data-action="notes">
+        <span class="qa-icon"><i data-lucide="file-text"></i></span> New Note
+      </button>
+      <button class="quick-action" id="qa-files" data-action="files">
+        <span class="qa-icon"><i data-lucide="folder"></i></span> Browse Files
+      </button>
+      <button class="quick-action" id="qa-security" data-action="security">
+        <span class="qa-icon"><i data-lucide="shield"></i></span> Security Log
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Quick Command</span>
+      </div>
+      <div class="input-line">
+        <input type="text" class="input" id="home-command-input" placeholder="Type a command or question..." autocomplete="off">
+        <button class="btn btn-primary" id="home-command-send">Send</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- VOICE TEMPLATE -->
+  <template id="tmpl-voice">
+    <div class="screen-header">
+      <h1><i data-lucide="mic"></i> Voice Assistant</h1>
+      <p>Speak or type — POTTS is listening.</p>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot idle" id="voice-status-dot"></div>
+      <span class="status-label" id="voice-status-label">Click the mic to start</span>
+    </div>
+
+    <button class="mic-btn" id="mic-btn" title="Click to start listening"><i data-lucide="mic"></i></button>
+
+    <div class="chat-container" id="chat-container">
+      <div class="chat-bubble ai">
+        Hello, Sir. How can I assist you today?
+        <div class="chat-time">Just now</div>
+      </div>
+    </div>
+
+    <div class="input-line">
+      <input type="text" class="input" id="voice-text-input" placeholder="Or type your message here..." autocomplete="off">
+      <button class="btn btn-primary" id="voice-send-btn">Send</button>
+    </div>
+  </template>
+
+  <!-- FILES TEMPLATE -->
+  <template id="tmpl-files">
+    <div class="screen-header">
+      <h1><i data-lucide="folder"></i> File Manager</h1>
+      <p>Browse and manage files on D:\ and E:\ drives.</p>
+    </div>
+
+    <div class="breadcrumb-bar" id="breadcrumb-bar">
+      <button class="breadcrumb-item" id="breadcrumb-up" title="Go up"><i data-lucide="arrow-up"></i></button>
+      <span class="breadcrumb-sep">|</span>
+      <div id="breadcrumb-items"></div>
+    </div>
+
+    <div class="btn-group" style="margin-bottom: 12px;">
+      <button class="btn btn-sm" id="files-new-file"><i data-lucide="file"></i> New File</button>
+      <button class="btn btn-sm" id="files-new-folder"><i data-lucide="folder"></i> New Folder</button>
+      <button class="btn btn-sm" id="files-refresh"><i data-lucide="refresh-cw"></i> Refresh</button>
+      <select class="select" id="files-drive-select" style="width: 80px; padding: 4px 8px; font-size: 11px;">
+        <option value="D:\">D:\</option>
+        <option value="E:\">E:\</option>
+      </select>
+    </div>
+
+    <div class="file-list" id="file-list">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="card" style="margin-top: 12px;">
+      <div class="card-header">
+        <span class="card-title">Recent Actions</span>
+      </div>
+      <div id="file-action-log" class="security-log" style="max-height: 150px;"></div>
+    </div>
+  </template>
+
+  <!-- NOTES TEMPLATE -->
+  <template id="tmpl-notes">
+    <div class="screen-header">
+      <h1><i data-lucide="file-text"></i> Notes Manager</h1>
+      <p>Create, search, and organize your notes.</p>
+    </div>
+
+    <div class="notes-toolbar">
+      <input type="text" class="input" id="notes-search" placeholder="<i data-lucide="search"></i> Search notes..." style="flex:1; max-width: 200px;">
+      <button class="tag-filter active" data-filter="" id="filter-all">All <span id="count-all">0</span></button>
+      <button class="tag-filter" data-filter="personal" id="filter-personal"><i data-lucide="circle" class="text-blue"></i> Personal <span id="count-personal">0</span></button>
+      <button class="tag-filter" data-filter="work" id="filter-work"><i data-lucide="circle" class="text-green"></i> Work <span id="count-work">0</span></button>
+      <button class="tag-filter" data-filter="todo" id="filter-todo"><i data-lucide="circle" class="text-yellow"></i> Todo <span id="count-todo">0</span></button>
+    </div>
+
+    <div class="btn-group" style="margin-bottom: 14px;">
+      <button class="btn btn-primary btn-sm" id="notes-add-btn">+ New Note</button>
+      <button class="btn btn-sm" id="notes-export-btn"><i data-lucide="upload"></i> Export All</button>
+    </div>
+
+    <div class="notes-grid" id="notes-grid">
+      <div class="empty-state">
+        <div class="empty-icon"><i data-lucide="file-text"></i></div>
+        <div class="empty-title">No notes yet</div>
+        <div class="empty-desc">Create your first note to get started.</div>
+      </div>
+    </div>
+  </template>
+
+  <!-- SETTINGS TEMPLATE -->
+  <template id="tmpl-settings">
+    <div class="screen-header">
+      <h1><i data-lucide="settings"></i> Settings</h1>
+      <p>Configure POTTS Desktop to your preferences.</p>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">API Configuration</div>
+      
+      <div class="input-group">
+        <label for="settings-ai-provider">AI Provider</label>
+        <select class="select" id="settings-ai-provider">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq (Llama / Mixtral)</option>
+        </select>
+      </div>
+
+      <!-- GEMINI SETTINGS -->
+      <div id="settings-group-gemini" class="provider-group">
+        <div class="input-group">
+          <label for="settings-api-key">Gemini API Key</label>
+          <div class="input-line">
+            <input type="password" class="input" id="settings-api-key" placeholder="Enter your Gemini API key...">
+            <button class="btn btn-sm" id="settings-toggle-key" title="Toggle Visibility"><i data-lucide="eye"></i></button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="settings-gemini-model">Gemini Model</label>
+          <select class="select" id="settings-gemini-model">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- GROQ SETTINGS -->
+      <div id="settings-group-groq" class="provider-group" style="display: none;">
+        <div class="input-group">
+          <label for="settings-groq-key">Groq API Key</label>
+          <div class="input-line">
+            <input type="password" class="input" id="settings-groq-key" placeholder="Enter your Groq API key...">
+            <button class="btn btn-sm" id="settings-toggle-groq-key" title="Toggle Visibility"><i data-lucide="eye"></i></button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="settings-groq-model">Groq Model</label>
+          <select class="select" id="settings-groq-model">
+            <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B</option>
+            <option value="llama-3.1-8b-instant">LLaMA 3.1 8B</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+            <option value="gemma2-9b-it">Gemma 2 9B</option>
+            <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 (70B Distill)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Voice Settings</div>
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">Voice Speed</span>
+          <span class="slider-value" id="voice-speed-value">1.0</span>
+        </div>
+        <input type="range" id="settings-voice-speed" min="0.5" max="2.0" step="0.1" value="1.0">
+      </div>
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">Voice Pitch</span>
+          <span class="slider-value" id="voice-pitch-value">1.0</span>
+        </div>
+        <input type="range" id="settings-voice-pitch" min="0.0" max="2.0" step="0.1" value="1.0">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Hotkey</div>
+      <div class="input-group">
+        <label for="settings-hotkey">Global Hotkey</label>
+        <input type="text" class="input" id="settings-hotkey" value="Ctrl+Space" placeholder="e.g. Ctrl+Space">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Behavior</div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Auto-start on Boot</span>
+          <span class="toggle-desc">Launch POTTS when Windows starts</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="settings-autostart">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Always on Top</span>
+          <span class="toggle-desc">Keep POTTS above other windows</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="settings-always-top">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Confirm Destructive Actions</span>
+          <span class="toggle-desc">Ask before delete, move, shutdown</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="settings-confirm-destructive" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">File Manager</div>
+      <div class="input-group">
+        <label for="settings-default-drive">Default Drive</label>
+        <select class="select" id="settings-default-drive">
+          <option value="D:\">D:\</option>
+          <option value="E:\">E:\</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">Appearance</div>
+      <div class="input-group">
+        <label for="settings-theme">Theme</label>
+        <select class="select" id="settings-theme">
+          <option value="dark"><i data-lucide="moon"></i> Dark Mode</option>
+          <option value="light"><i data-lucide="sun"></i> Light Mode</option>
+          <option value="ironman"><i data-lucide="circle" class="text-red"></i> Iron Man</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-group" style="margin-top: 16px;">
+      <button class="btn btn-primary" id="settings-save-btn"><i data-lucide="save"></i> Save Settings</button>
+      <button class="btn btn-danger" id="settings-reset-btn"><i data-lucide="refresh-cw"></i> Reset to Defaults</button>
+    </div>
+  </template>
+
+  <!-- SECURITY TEMPLATE -->
+  <template id="tmpl-security">
+    <div class="screen-header">
+      <h1><i data-lucide="shield"></i> Security Dashboard</h1>
+      <p>Monitor blocked access attempts and drive permissions.</p>
+    </div>
+
+    <div class="drive-status-grid" id="drive-status-grid"></div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Blocked Attempts Log</span>
+        <div class="btn-group">
+          <button class="btn btn-sm" id="security-export-btn"><i data-lucide="upload"></i> Export</button>
+          <button class="btn btn-sm btn-danger" id="security-clear-btn"><i data-lucide="trash-2"></i> Clear</button>
+        </div>
+      </div>
+      <div class="security-log" id="security-log">
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="shield"></i></div>
+          <div class="empty-title">No blocked attempts</div>
+          <div class="empty-desc">All clear — no suspicious activity detected.</div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ═══ SCRIPTS ═══ -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="renderer.js"></script>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      const observer = new MutationObserver(() => {
+        lucide.createIcons();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  </script>
+
+</body>
+</html>
