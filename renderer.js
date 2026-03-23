@@ -161,6 +161,17 @@ function speak(text) {
   }
 }
 
+/**
+ * Speaks text aloud and adds it as an AI chat bubble.
+ * Use this when overriding the default response (like time/weather).
+ */
+function speakAndChat(text) {
+  if (!text) return;
+  addChatBubble(text, 'ai');
+  APP.chatHistory.push({ role: 'assistant', text: text });
+  speak(text);
+}
+
 // ─── GEMINI AI INTEGRATION ──────────────────────────────────
 
 /**
@@ -398,18 +409,18 @@ async function executeIntent(intent) {
       }
       case 'get_time': {
         const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        speak(`The current time is ${time}, Sir.`);
-        break;
+        speakAndChat(`The current time is ${time}, Sir.`);
+        return true;
       }
       case 'get_date': {
         const date = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        speak(`Today is ${date}, Sir.`);
-        break;
+        speakAndChat(`Today is ${date}, Sir.`);
+        return true;
       }
       case 'get_weather': {
         const city = intent.params?.city || 'London';
         await getWeather(city);
-        break;
+        return true;
       }
       case 'create_note': {
         const { title, content } = intent.params || {};
@@ -441,10 +452,13 @@ async function executeIntent(intent) {
       }
       default:
         console.log('[Intent] Unknown action:', intent.action);
+        return false;
     }
+    return false; // Default: didn't take over speaking
   } catch (err) {
     console.error('[Intent] Execution error:', err);
     showToast(`Failed to execute: ${err.message}`, 'error');
+    return false;
   }
 }
 
@@ -459,7 +473,7 @@ async function getWeather(city) {
     const geoData = await geoRes.json();
 
     if (!geoData.results || geoData.results.length === 0) {
-      speak(`I couldn't find weather data for ${city}, Sir.`);
+      speakAndChat(`I couldn't find weather data for ${city}, Sir.`);
       return;
     }
 
@@ -471,10 +485,10 @@ async function getWeather(city) {
     const windSpeed = weatherData.current_weather?.windspeed;
 
     const msg = `Currently in ${name}: ${temp}°C with wind at ${windSpeed} km/h, Sir.`;
-    speak(msg);
+    speakAndChat(msg);
     showToast(msg, 'info');
   } catch (err) {
-    speak(`Sorry, I couldn't fetch the weather right now, Sir.`);
+    speakAndChat(`Sorry, I couldn't fetch the weather right now, Sir.`);
   }
 }
 
@@ -576,12 +590,15 @@ async function handleUserMessage(message) {
   addChatBubble(response.text, 'ai');
   APP.chatHistory.push({ role: 'assistant', text: response.text });
 
-  // Speak the response
-  speak(response.text);
-
   // Execute intent if present
+  let intentHandled = false;
   if (response.intent) {
-    await executeIntent(response.intent);
+    intentHandled = await executeIntent(response.intent);
+  }
+
+  // Speak the response if intent didn't take over speaking
+  if (!intentHandled) {
+    speak(response.text);
   }
 
   setStatus('idle');
