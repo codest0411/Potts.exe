@@ -74,6 +74,10 @@ function initializeNavigation() {
  * @param {string} screenName - Screen identifier
  */
 function navigateTo(screenName) {
+  if (screenName === APP.currentScreen && document.getElementById(`screen-${screenName}`).classList.contains('active')) {
+    return;
+  }
+  
   // Update nav active state
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const activeNav = document.querySelector(`.nav-item[data-screen="${screenName}"]`);
@@ -201,6 +205,8 @@ When the user asks you to perform an action, respond with a JSON object in this 
   }
 }
 
+CRITICAL: Return ONLY ONE JSON object per message. DO NOT chain responses or include multiple actions.
+
 Available actions:
 - "open_app": { "name": "app name" } — Open an application
 - "volume_up", "volume_down", "volume_mute" — Volume controls
@@ -213,8 +219,12 @@ Available actions:
 - "get_weather": { "city": "city name" } — Get weather
 - "create_note": { "title": "title", "content": "content" } — Create a note
 - "search_notes": { "query": "search term" } — Search notes
-- "list_files": { "path": "directory path" } — List files
-- "type_text": { "text": "text to type" } — Type text
+- "open_file": { "path": "full path" } — Open a file or folder by path
+- "open_file_location": { "path": "full path" } — Open the folder and highlight the file in Explorer
+- "create_file": { "path": "full path", "content": "text" } — Create a new file with content
+- "list_files": { "path": "directory path" } — List files on computer
+- "open_web": { "url": "https://url.com" } — Open a specific website or a new tab (use google.com if not specified)
+- "search_web": { "query": "search term" } — Search the internet for information
 
 If the user is just chatting or asking a question (no action needed), respond with:
 {
@@ -300,21 +310,21 @@ CRITICAL SECURITY RULES:
     // Try to parse as JSON
     let parsed;
     try {
-      // Extract JSON from possible markdown code blocks
-      const jsonMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/) ||
-        rawText.match(/(\{[\s\S]*\})/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[1]);
+      // Improved extraction: Find the FIRST valid JSON block
+      const jsonStr = rawText.match(/\{(?:[^{}]|(\{(?:[^{}]|(\{[^{}]*\}))*\}))*\}/);
+      if (jsonStr) {
+        parsed = JSON.parse(jsonStr[0]);
       } else {
         parsed = { reply: rawText, intent: null };
       }
-    } catch {
+    } catch (err) {
+      console.warn('[Parser] JSON parse error, falling back to raw text:', err);
       parsed = { reply: rawText, intent: null };
     }
 
     return {
-      text: parsed.reply || rawText,
-      intent: parsed.intent || null,
+      text: (parsed && parsed.reply) ? parsed.reply : rawText,
+      intent: (parsed && parsed.intent) ? parsed.intent : null,
     };
   } catch (err) {
     console.error('[Gemini] API error:', err);
@@ -338,35 +348,50 @@ async function executeIntent(intent) {
     switch (intent.action) {
       case 'open_app': {
         const appName = intent.params?.name;
-        if (appName) {
-          // Map common names to actual executable commands
-          const appMap = {
-            'google chrome': 'chrome',
-            'chrome': 'chrome',
-            'microsoft edge': 'msedge',
-            'edge': 'msedge',
-            'notepad': 'notepad',
-            'calculator': 'calc',
-            'calc': 'calc',
-            'word': 'winword',
-            'microsoft word': 'winword',
-            'excel': 'excel',
-            'microsoft excel': 'excel',
-            'powerpoint': 'powerpnt',
-            'microsoft powerpoint': 'powerpnt',
-            'vs code': 'code',
-            'visual studio code': 'code',
-            'terminal': 'wt',
-            'windows terminal': 'wt',
-            'file explorer': 'explorer',
-            'explorer': 'explorer',
-            'brave': 'brave',
-            'firefox': 'firefox',
-            'spotify': 'spotify'
-          };
-          const execName = appMap[appName.toLowerCase()] || appName;
-          await window.potts.system.execute(`start "" "${execName}"`);
+        if (!appName) break;
+
+        const appMap = {
+          'google chrome': 'chrome', 'chrome': 'chrome', 'edge': 'msedge',
+          'notepad': 'notepad', 'calc': 'calc', 'calculator': 'calc',
+          'word': 'winword', 'excel': 'excel', 'powerpoint': 'powerpnt',
+          'vs code': 'code', 'visual studio code': 'code',
+          'terminal': 'wt', 'explorer': 'explorer', 'brave': 'brave',
+          'firefox': 'firefox', 'spotify': 'spotify', 'whatsapp': 'whatsapp:',
+          'store': 'ms-windows-store:', 'paint': 'mspaint', 'vlc': 'vlc',
+          'steam': 'steam', 'discord': 'discord', 'obs': 'obs64'
+        };
+
+        const execName = appMap[appName.toLowerCase()] || appName;
+        
+        // Step 1: Try direct start (fastest for commands in PATH)
+        const directRes = await window.potts.system.execute(`start "" "${execName}"`);
+        if (directRes.success) {
           showToast(`Opening ${appName}...`, 'success');
+          break;
+        }
+
+        // Step 2: PowerShell StartApps Search (Handles UWP and Start Menu apps)
+        showToast(`Searching for ${appName}...`, 'info');
+        const safeAppName = appName.replace(/'/g, "''");
+        const psSearch = `powershell -c "$name = '${safeAppName}'; $app = Get-StartApps | Where-Object { $_.Name -match $name -or $_.AppID -match $name } | Select-Object -First 1; if ($app) { echo $app.AppID } else { exit 1 }"`;
+        const searchRes = await window.potts.system.execute(psSearch);
+        
+        if (searchRes.success && searchRes.output.trim()) {
+          const appId = searchRes.output.trim();
+          await window.potts.system.execute(`explorer shell:AppsFolder\\${appId}`);
+          showToast(`Launched ${appName} from Start Menu`, 'success');
+        } else {
+          // Step 3: Try searching for the .exe in common locations (Last Resort)
+          const findExe = `powershell -c "$name = '${safeAppName}'; $paths = @('$env:ProgramFiles', '${process.env['ProgramFiles(x86)']}', '$env:LocalAppData\\Programs'); $exe = Get-ChildItem -Path $paths -Filter \\"*$name*.exe\\" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1; if ($exe) { echo $exe.FullName } else { exit 1 }"`;
+          const findRes = await window.potts.system.execute(findExe);
+          
+          if (findRes.success && findRes.output.trim()) {
+            const fullPath = findRes.output.trim();
+            await window.potts.system.execute(`start "" "${fullPath}"`);
+            showToast(`Found and opened ${appName}`, 'success');
+          } else {
+            showToast(`Could not find or open: ${appName}`, 'error');
+          }
         }
         break;
       }
@@ -422,6 +447,16 @@ async function executeIntent(intent) {
         await getWeather(city);
         return true;
       }
+      case 'get_battery': {
+        const result = await window.potts.system.execute('powershell -c "(Get-WmiObject -Class Win32_Battery).EstimatedChargeRemaining"');
+        const level = result.success ? result.output.trim() : null;
+        if (level) {
+          speakAndChat(`The battery is at ${level} percent, Sir.`);
+        } else {
+          speakAndChat('I cannot retrieve the battery status right now, Sir.');
+        }
+        return true;
+      }
       case 'create_note': {
         const { title, content } = intent.params || {};
         if (title) {
@@ -430,23 +465,73 @@ async function executeIntent(intent) {
         }
         break;
       }
+      case 'open_web': {
+        const url = intent.params?.url;
+        if (url) {
+          // Add protocol if missing
+          const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+          await window.potts.system.execute(`start chrome "${fullUrl}"`);
+          showToast(`Opening ${url}...`, 'success');
+        }
+        break;
+      }
+      case 'search_web': {
+        const query = intent.params?.query;
+        if (query) {
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+          await window.potts.system.execute(`start chrome "${searchUrl}"`);
+          showToast(`Searching for "${query}"...`, 'info');
+        }
+        break;
+      }
       case 'search_notes': {
         const query = intent.params?.query;
         if (query) {
-          const results = await window.potts.notes.search(query);
-          showToast(`Found ${results.length} note(s) matching "${query}"`, 'info');
+          navigateTo('notes');
+          const searchInput = document.getElementById('notes-search');
+          if (searchInput) {
+            searchInput.value = query;
+            // Trigger input event to filter list
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          showToast(`Searching notes for "${query}"`, 'info');
         }
-        break;
+        return true;
       }
       case 'list_files': {
         const filePath = intent.params?.path || 'D:\\';
         navigateTo('files');
         break;
       }
-      case 'type_text': {
-        const text = intent.params?.text;
-        if (text) {
-          showToast('Typing text... (requires RobotJS)', 'info');
+      case 'open_file': {
+        const filePath = intent.params?.path;
+        if (filePath) {
+          const validation = await window.potts.security.validate({ path: filePath, action: 'open', source: 'system-control' });
+          if (!validation.allowed) {
+            showToast(validation.message, 'error');
+            break;
+          }
+          await window.potts.system.execute(`start "" "${filePath}"`);
+          showToast(`Opening ${filePath}...`, 'success');
+        }
+        break;
+      }
+      case 'create_file': {
+        const { path: filePath, content } = intent.params || {};
+        if (filePath) {
+          const res = await window.potts.files.create({ filePath, content: content || '', isDirectory: false });
+          if (res.success) {
+            showToast(`File created at ${filePath}`, 'success');
+          } else {
+            showToast(`Failed to create file: ${res.error}`, 'error');
+          }
+        }
+        break;
+      }
+      case 'open_file_location': {
+        const filePath = intent.params?.path;
+        if (filePath) {
+          await openInExplorer(filePath);
         }
         break;
       }
@@ -619,8 +704,14 @@ function addChatBubble(text, sender) {
   const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   if (sender === 'ai') {
-    // Typewriter effect for AI
-    bubble.innerHTML = `<span class="ai-response-text"></span><div class="chat-time">${time}</div>`;
+    // AI bubble with copy button
+    bubble.innerHTML = `
+      <div class="chat-bubble-header">
+        <span class="ai-response-text"></span>
+        <button class="chat-copy-btn" title="Copy text" onclick="copyChatText('${escapeAttr(text)}')"><i data-lucide="copy"></i></button>
+      </div>
+      <div class="chat-time">${time}</div>
+    `;
     container.appendChild(bubble);
     typewriterEffect(bubble.querySelector('.ai-response-text'), text);
   } else {
@@ -641,12 +732,24 @@ function typewriterEffect(element, text, speed = 20) {
     if (i < text.length) {
       element.textContent += text.charAt(i);
       i++;
-      element.parentElement.parentElement.scrollTop = element.parentElement.parentElement.scrollHeight;
+      const chatBox = document.getElementById('chat-container');
+      if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
     } else {
       element.classList.remove('typewriter');
       clearInterval(interval);
     }
   }, speed);
+}
+
+/**
+ * Copies text to system clipboard.
+ */
+function copyChatText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied to clipboard!', 'success');
+  }).catch(() => {
+    showToast('Failed to copy', 'error');
+  });
 }
 
 /**
@@ -699,7 +802,8 @@ async function initHomeScreen() {
     await refreshHomeStats();
     return;
   }
-
+  
+  homeInitialized = true; // Set early to prevent race conditions
   await refreshHomeStats();
 
   // Set greeting
@@ -741,8 +845,6 @@ async function initHomeScreen() {
       }
     });
   }
-
-  homeInitialized = true;
 }
 
 async function refreshHomeStats() {
@@ -757,10 +859,25 @@ async function refreshHomeStats() {
     const uptimeH = Math.floor(sysInfo.uptime / 3600);
     const uptimeM = Math.floor((sysInfo.uptime % 3600) / 60);
 
+    // Get Battery & CPU
+    let batteryVal = '--';
+    let cpuVal = '--';
+    try {
+      const [batRes, cpuRes] = await Promise.all([
+        window.potts.system.execute('powershell -c "(Get-WmiObject -Class Win32_Battery).EstimatedChargeRemaining"'),
+        window.potts.system.execute('powershell -c "(Get-CimInstance Win32_Processor).LoadPercentage"')
+      ]);
+      if (batRes.success && batRes.output.trim()) batteryVal = batRes.output.trim() + '%';
+      if (cpuRes.success && cpuRes.output.trim()) cpuVal = cpuRes.output.trim() + '%';
+    } catch {}
+
     setElementText('stat-notes', notesCount);
     setElementText('stat-security', secLog.length);
     setElementText('stat-memory', memPercent + '%');
+    setElementText('stat-cpu', cpuVal);
+    setElementText('stat-battery', batteryVal);
     setElementText('stat-uptime', `${uptimeH}h ${uptimeM}m`);
+    setElementText('stat-hostname', sysInfo.hostname || 'POTTS');
   } catch (err) {
     console.error('[Home] Stats error:', err);
   }
@@ -772,6 +889,7 @@ let voiceInitialized = false;
 
 function initVoiceScreen() {
   if (voiceInitialized) return;
+  voiceInitialized = true; // Set early to prevent race conditions
 
   const micBtn = document.getElementById('mic-btn');
   const textInput = document.getElementById('voice-text-input');
@@ -793,8 +911,6 @@ function initVoiceScreen() {
       if (e.key === 'Enter') sendBtn.click();
     });
   }
-
-  voiceInitialized = true;
 }
 
 // ─── FILES SCREEN ───────────────────────────────────────────
@@ -805,6 +921,7 @@ let fileItems = [];
 
 async function initFilesScreen() {
   if (filesInitialized) return;
+  filesInitialized = true; // Set early to prevent race conditions during async loads
 
   const driveSelect = document.getElementById('files-drive-select');
   if (driveSelect) {
@@ -823,8 +940,6 @@ async function initFilesScreen() {
 
   await loadDirectory(currentFilePath);
   await loadFileActionLog();
-
-  filesInitialized = true;
 }
 
 async function loadDirectory(dirPath) {
@@ -856,6 +971,7 @@ async function loadDirectory(dirPath) {
         <span class="file-name">${escapeHtml(item.name)}</span>
         <span class="file-meta">${item.isDirectory ? '' : formatFileSize(item.size)}</span>
         <div class="file-actions">
+          <button class="btn btn-sm btn-icon" onclick="openInExplorer('${escapeAttr(item.path)}')" title="Open Location"><i data-lucide="external-link"></i></button>
           <button class="btn btn-sm btn-icon" onclick="renameFileItem(event, '${escapeAttr(item.path)}', '${escapeAttr(item.name)}')" title="Rename"><i data-lucide="edit-2"></i></button>
           <button class="btn btn-sm btn-icon btn-danger" onclick="deleteFileItem(event, '${escapeAttr(item.path)}', '${escapeAttr(item.name)}')" title="Delete"><i data-lucide="trash-2"></i></button>
         </div>
@@ -1036,6 +1152,7 @@ async function initNotesScreen() {
     await refreshNotes();
     return;
   }
+  notesInitialized = true; // Set early to prevent race conditions during async loads
 
   // Search input
   document.getElementById('notes-search')?.addEventListener('input', async (e) => {
@@ -1072,7 +1189,6 @@ async function initNotesScreen() {
   });
 
   await refreshNotes();
-  notesInitialized = true;
 }
 
 async function refreshNotes() {
@@ -1229,6 +1345,7 @@ let settingsInitialized = false;
 
 async function initSettingsScreen() {
   if (settingsInitialized) return;
+  settingsInitialized = true; // Set early to prevent race conditions
 
   // Load current settings into form
   const s = APP.settings;
@@ -1329,8 +1446,6 @@ async function initSettingsScreen() {
       initSettingsScreen();
     }
   });
-
-  settingsInitialized = true;
 }
 
 // ─── SECURITY SCREEN ───────────────────────────────────────
@@ -1343,6 +1458,7 @@ async function initSecurityScreen() {
   await loadSecurityLog();
 
   if (securityInitialized) return;
+  securityInitialized = true; // Set early to prevent race conditions during async loads
 
   document.getElementById('security-export-btn')?.addEventListener('click', async () => {
     try {
@@ -1364,8 +1480,6 @@ async function initSecurityScreen() {
     showToast('Security log cleared', 'success');
     await loadSecurityLog();
   });
-
-  securityInitialized = true;
 }
 
 async function loadDriveStatus() {
@@ -1434,6 +1548,20 @@ function setInputValue(id, value) {
 function setChecked(id, checked) {
   const el = document.getElementById(id);
   if (el) el.checked = checked;
+}
+
+/**
+ * Opens a file or folder in native Windows Explorer.
+ */
+async function openInExplorer(filePath) {
+  if (!filePath) return;
+  try {
+    // '/select' opens the folder and highlights the file
+    await window.potts.system.execute(`explorer /select,"${filePath}"`);
+    showToast('Opening file location...', 'info');
+  } catch (err) {
+    showToast('Failed to open location', 'error');
+  }
 }
 
 function setSelectValue(id, value) {

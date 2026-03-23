@@ -91,7 +91,7 @@
   <template id="tmpl-home">
     <div class="screen-header">
       <h1 id="home-greeting">Good Morning, Sir</h1>
-      <p>POTTS Desktop is online and ready to assist.</p>
+      <p><span id="stat-hostname">POTTS</span> is online and ready to assist.</p>
     </div>
 
     <div class="status-bar" id="home-status-bar">
@@ -116,6 +116,16 @@
         <div class="stat-label">Memory</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="cpu"></i></div>
+        <div class="stat-value" id="stat-cpu">0%</div>
+        <div class="stat-label">CPU</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="battery"></i></div>
+        <div class="stat-value" id="stat-battery">--%</div>
+        <div class="stat-label">Battery</div>
+      </div>
+      <div class="stat-card" style="grid-column: span 2;">
         <div class="stat-icon"><i data-lucide="timer"></i></div>
         <div class="stat-value" id="stat-uptime">--</div>
         <div class="stat-label">Uptime</div>
@@ -218,7 +228,7 @@
     </div>
 
     <div class="notes-toolbar">
-      <input type="text" class="input" id="notes-search" placeholder="<i data-lucide="search"></i> Search notes..." style="flex:1; max-width: 200px;">
+      <input type="text" class="input" id="notes-search" placeholder="Search notes..." style="flex:1; max-width: 200px;">
       <button class="tag-filter active" data-filter="" id="filter-all">All <span id="count-all">0</span></button>
       <button class="tag-filter" data-filter="personal" id="filter-personal"><i data-lucide="circle" class="text-blue"></i> Personal <span id="count-personal">0</span></button>
       <button class="tag-filter" data-filter="work" id="filter-work"><i data-lucide="circle" class="text-green"></i> Work <span id="count-work">0</span></button>

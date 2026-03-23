@@ -23,6 +23,9 @@ const NOTES_FILE_PATH = path.join(POTTS_DATA_DIR, 'notes.json');
 /** Notes export text file path */
 const NOTES_EXPORT_PATH = path.join(POTTS_DATA_DIR, 'notes.txt');
 
+/** Individual notes text directory */
+const NOTES_TXT_DIR = path.join(POTTS_DATA_DIR, 'Individual_Notes');
+
 /** Valid tag names */
 const VALID_TAGS = ['personal', 'work', 'todo'];
 
@@ -36,6 +39,9 @@ function ensureNotesFile() {
   try {
     if (!fs.existsSync(POTTS_DATA_DIR)) {
       fs.mkdirSync(POTTS_DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(NOTES_TXT_DIR)) {
+      fs.mkdirSync(NOTES_TXT_DIR, { recursive: true });
     }
     if (!fs.existsSync(NOTES_FILE_PATH)) {
       fs.writeFileSync(NOTES_FILE_PATH, JSON.stringify([], null, 2), 'utf-8');
@@ -129,6 +135,13 @@ async function createNote(title, content, tags = []) {
   notes.unshift(note); // Add to beginning (newest first)
   await writeNotesFile(notes);
 
+  // Mirrors note as .txt file
+  try {
+    const safeTitle = note.title.replace(/[<>:"/\\|?*]/g, '_');
+    const txtPath = path.join(NOTES_TXT_DIR, `${safeTitle}.txt`);
+    await fs.promises.writeFile(txtPath, note.content, 'utf-8');
+  } catch {}
+
   return note;
 }
 
@@ -192,6 +205,13 @@ async function updateNote(id, updates = {}) {
   notes[index] = note;
   await writeNotesFile(notes);
 
+  // Sync to .txt file
+  try {
+    const safeTitle = note.title.replace(/[<>:"/\\|?*]/g, '_');
+    const txtPath = path.join(NOTES_TXT_DIR, `${safeTitle}.txt`);
+    await fs.promises.writeFile(txtPath, note.content, 'utf-8');
+  } catch {}
+
   return note;
 }
 
@@ -210,8 +230,15 @@ async function deleteNote(id) {
     throw new Error('Note not found.');
   }
 
-  notes.splice(index, 1);
+  const deletedNote = notes.splice(index, 1)[0];
   await writeNotesFile(notes);
+
+  // Sync delete from .txt files
+  try {
+    const safeTitle = deletedNote.title.replace(/[<>:"/\\|?*]/g, '_');
+    const txtPath = path.join(NOTES_TXT_DIR, `${safeTitle}.txt`);
+    if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
+  } catch {}
 
   return true;
 }

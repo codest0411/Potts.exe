@@ -840,6 +840,39 @@ input[type="range"]::-webkit-slider-thumb {
   border-bottom-left-radius: var(--radius-sm);
 }
 
+.chat-bubble-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.chat-copy-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: var(--transition);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -2px;
+}
+
+.chat-copy-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+  background: var(--bg-nav);
+}
+
+.chat-copy-btn .lucide {
+  width: 14px;
+  height: 14px;
+}
+
 .chat-time {
   font-size: 9px;
   color: var(--text-muted);
@@ -1413,6 +1446,7 @@ body,
   height: 1.1em;
   vertical-align: -0.125em;
   stroke-width: 2;
+  pointer-events: none; /* Fix: Icons shouldn't intercept clicks */
 }
 .text-blue { color: #3b82f6; }
 .text-green { color: #22c55e; }
